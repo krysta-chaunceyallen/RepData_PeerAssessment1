@@ -1,20 +1,106 @@
-# Reproducible Research: Peer Assessment 1
+Reproducible Research, Peer Assessment 1
+========================================================
+## Importing & Processing Data
+```{r import}
+# Import data
+activity <- read.csv("activity.csv")
+# Aggregate by date
+dailySteps <- aggregate(activity$steps, list(as.Date(activity$date)), sum)
+# Name usefully
+names(dailySteps) <- c("Date", "Total.Steps")
+# Converts to numeric
+dailySteps$Total.Steps <- as.numeric(dailySteps$Total.Steps)
+```
 
+## What is the mean total number of steps taken per day?
+1. The daily totals are distributed like so:
 
-## Loading and preprocessing the data
+    ```{r fig.width=7, fig.height=6}
+    library(ggplot2)
+    ggplot(dailySteps, aes(x=Total.Steps)) + geom_histogram(binwidth=1000, colour="black", fill="white")
+    ```
 
+    ```{r central}
+    # Calculate mean
+    dailyMean <- mean(dailySteps$Total.Steps, na.rm = TRUE)
+    #Calculate median
+    dailyMedian <- median(dailySteps$Total.Steps, na.rm = TRUE)
+    ```
 
-
-## What is mean total number of steps taken per day?
-
-
+2. The mean daily number of steps is `r dailyMean`; the median daily number of steps is `r dailyMedian`.
 
 ## What is the average daily activity pattern?
+    
+1. The mean number of steps across all days, by five-minute interval:
+    ```{r dailyCalc}
+    intervalPattern <- aggregate(activity$steps, list(activity$interval), mean, na.rm = TRUE)
+    names(intervalPattern) <- c("5min.Interval", "Average.Num.Steps")
+    ```
 
+    ```{r fig.width=7, fig.height=6}
+    plot(intervalPattern, type="l", ylab = "Mean Number of Steps", xlab = "5min Interval")
+    ```
+2. The 5-minute interval with the greatest average number of steps is `r intervalPattern[intervalPattern$Average.Num.Steps == max(intervalPattern$Average.Num.Steps),][[1]]`.
 
+## Missing Values
+1. The total number of missing values in this dataset is `r sum(is.na(activity))`.
 
-## Imputing missing values
+2. Missing values will be replaced with the overall mean.
 
+3. This code replaces NAs with the overall mean.
 
+    ```{r replaceMissing}
+    for (i in which(sapply(activity, is.numeric))) {
+        activity[is.na(activity[, i]), i] <- mean(activity[, i],  na.rm = TRUE)
+    }
+    ```
+
+4. The new daily totals are distributed like so:
+
+    ```{r dailyPostCalc}
+    # Aggregate by date
+    dailySteps <- aggregate(activity$steps, list(as.Date(activity$date)), sum)
+    # Name usefully
+    names(dailySteps) <- c("Date", "Total.Steps")
+    # Converts to numeric
+    dailySteps$Total.Steps <- as.numeric(dailySteps$Total.Steps)
+    ```
+
+    ```{r fig.width=7, fig.height=6}
+    ggplot(dailySteps, aes(x=Total.Steps)) + geom_histogram(binwidth=1000, colour="black", fill="white")
+    ```
+
+    ```{r centralAdj}
+    # Calculate mean
+    dailyAdjMean <- mean(dailySteps$Total.Steps, na.rm = TRUE)
+    #Calculate median
+    dailyAdjMedian <- median(dailySteps$Total.Steps, na.rm = TRUE)
+    ```
+
+The new mean daily number of steps is `r dailyAdjMean`, compared to the original `r dailyMean`; the new median daily number of steps is `r dailyAdjMedian`, compared to the original `r dailyMedian`.  Replacing missing values with the overall mean distorts the distribution of the data, but since the original mean/median were calculated leaving out the NAs, does not materially change the estimate of central tendency.
 
 ## Are there differences in activity patterns between weekdays and weekends?
+1. The factor daytype has been added to the data as below.
+
+    ```{r daytype}
+    activity$daytype <- factor(ifelse(as.POSIXlt(activity$date)$wday %% 6 == 0, "Weekend", "Weekday"))
+    ```
+
+2. The time series panel plot of average number of steps taken per 5 min interval per day type
+
+    ```{r dayTimeSeries, warning=FALSE}
+    library(reshape2)
+    test <- melt(activity, c("interval", "daytype"))
+    test <- test[1:17568,]
+    test$value <- as.numeric(test$value)
+    dayIntervalPattern <- dcast(test, interval ~ daytype, mean)
+    ```
+
+    ```{r fig.width=7, fig.height=6}
+    library(lattice)
+    px1 = xyplot(Weekday ~ interval, dayIntervalPattern, type = "l", ylab = "Number of Steps", main = "Weekday")
+    px2 = xyplot(Weekend ~ interval, dayIntervalPattern, type = "l", ylab = "Number of Steps", main = "Weekend")
+
+    # arrange the two plots vertically
+    print(px1, position=c(0, .5, 1, 1), more=TRUE)
+    print(px2, position=c(0, 0, 1, .5))
